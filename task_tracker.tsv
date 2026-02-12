@@ -1,0 +1,24 @@
+Task ID	Task	Workstream	Owner	Status	Priority	Start Date	Due Date	Completed Date	Dependencies	Notes
+T-001	Configure Reddit API credentials (PRAW)	WS1: Data Collection	Xavier Rivera	Complete	High	2025-01-15	2025-01-16	2025-01-15	—	Personal-use script registered; credentials stored in env vars
+T-002	Configure Pushshift API access	WS1: Data Collection	Xavier Rivera	Complete	High	2025-01-15	2025-01-17	2025-01-16	—	Custom base_url required for current endpoint
+T-003	Develop PRAW collection script	WS1: Data Collection	Xavier Rivera	Complete	High	2025-01-16	2025-01-19	2025-01-18	T-001	Targets federal subs: deptHHS, FedEmployees, feddiscussion, govfire
+T-004	Develop Pushshift collection script	WS1: Data Collection	Xavier Rivera	Complete	High	2025-01-16	2025-01-19	2025-01-19	T-002	Targets career subs: humanresources, recruiting, jobs, careerguidance
+T-005	Run initial test pull (50 posts)	WS1: Data Collection	Xavier Rivera	Complete	Medium	2025-01-20	2025-01-20	2025-01-20	T-003, T-004	Verified schema consistency across both sources
+T-006	Run full data collection	WS1: Data Collection	Xavier Rivera	Complete	High	2025-01-21	2025-01-26	2025-01-25	T-005	~500 records collected; rate limiting managed with sleep intervals
+T-007	Validate raw data completeness	WS1: Data Collection	Xavier Rivera	Complete	High	2025-01-26	2025-01-28	2025-01-27	T-006	Spot-checked date ranges and subreddit coverage
+T-008	Remove duplicate records	WS2: Data Cleaning	Xavier Rivera	Complete	High	2025-01-29	2025-01-31	2025-01-30	T-007	Deduped on (thread_id, id) composite key; 12 duplicates removed
+T-009	Handle missing values	WS2: Data Cleaning	Xavier Rivera	Complete	High	2025-01-30	2025-02-02	2025-02-01	T-008	Filled missing titles for comments; dropped 3 rows with null body
+T-010	Parse and normalize timestamps	WS2: Data Cleaning	Xavier Rivera	Complete	Medium	2025-02-01	2025-02-03	2025-02-02	T-009	Converted created_utc to datetime; extracted date, month, year
+T-011	Compute sentiment scores	WS2: Data Cleaning	Xavier Rivera	Complete	High	2025-02-03	2025-02-07	2025-02-06	T-010	TextBlob polarity; validated against manual sample (n=50)
+T-012	Add derived columns	WS2: Data Cleaning	Xavier Rivera	Complete	Medium	2025-02-06	2025-02-09	2025-02-08	T-011	word_count, engagement_tier (low/medium/high/viral)
+T-013	Write data dictionary	WS2: Data Cleaning	Xavier Rivera	Complete	Medium	2025-02-08	2025-02-12	2025-02-11	T-012	Documented all fields, types, derivation logic
+T-014	Exploratory data analysis	WS3: Analysis	Xavier Rivera	Complete	High	2025-02-12	2025-02-16	2025-02-15	T-012	Volume trends, top subreddits, engagement distributions
+T-015	Build sentiment time-series charts	WS3: Analysis	Xavier Rivera	Complete	High	2025-02-16	2025-02-21	2025-02-20	T-014	Altair line charts by subreddit and content type
+T-016	Build keyword frequency analysis	WS3: Analysis	Xavier Rivera	Complete	Medium	2025-02-19	2025-02-23	2025-02-22	T-014	Tracked SBH terminology trends over time
+T-017	Build Streamlit dashboard v1	WS3: Analysis	Xavier Rivera	Complete	High	2025-02-20	2025-02-28	2025-02-27	T-015, T-016	Executive summary, 4 chart sections, sidebar filters
+T-018	Internal dashboard review	WS3: Analysis	Xavier Rivera	Complete	Medium	2025-03-01	2025-03-05	2025-03-04	T-017	Incorporated feedback: added date range filter, polished layout
+T-019	Deploy dashboard to Streamlit Cloud	WS3: Analysis	Xavier Rivera	Complete	High	2025-03-05	2025-03-07	2025-03-06	T-018	Live at oaw-reddit-research.streamlit.app
+T-020	Add password protection	WS3: Analysis	Xavier Rivera	Complete	High	2025-03-06	2025-03-08	2025-03-07	T-019	st.secrets-based auth gate
+T-021	Draft executive summary	WS4: Reporting	Xavier Rivera	Complete	High	2025-03-10	2025-03-14	2025-03-13	T-018	3 key findings with supporting data
+T-022	Package final deliverables	WS4: Reporting	Xavier Rivera	Complete	High	2025-03-14	2025-03-19	2025-03-18	T-021	Dataset, dashboard, documentation, project plan
+T-023	Stakeholder walkthrough	WS4: Reporting	Xavier Rivera	Complete	Medium	2025-03-19	2025-03-23	2025-03-21	T-022	30-min demo with OAW Program Director

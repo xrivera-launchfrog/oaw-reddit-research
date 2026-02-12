@@ -1,0 +1,16 @@
+Participant ID	Incentive Type	Amount	Distribution Method	Distribution Date	Status	Receipt Confirmed	Notes
+P-001	Gift Card (Amazon)	$25	Email	2025-02-10	Distributed	Yes	Survey completion incentive
+P-002	Gift Card (Amazon)	$25	Email	2025-02-10	Distributed	Yes	Survey completion incentive
+P-003	Gift Card (Target)	$50	In-person	2025-02-12	Distributed	Yes	Focus group participation; preferred Target
+P-004	Gift Card (Amazon)	$50	Email	2025-02-13	Distributed	Yes	Interview participation
+P-005	Gift Card (Amazon)	$25	Email	—	Pending	—	Awaiting survey completion
+P-006	Gift Card (Amazon)	$25	—	—	Cancelled	—	Participant withdrew before survey completion
+P-007	—	—	—	—	N/A	—	Declined participation; no incentive applicable
+P-008	Gift Card (Amazon)	$25	Email	2025-02-15	Distributed	Yes	Survey completion incentive
+P-009	Gift Card (Amazon)	$25	Email	2025-02-15	Distributed	No	Email sent; no confirmation reply yet
+P-010	Gift Card (Visa)	$50	Mail	2025-02-18	In Transit	—	Focus group; requested physical Visa card
+P-011	Gift Card (Amazon)	$25	Email	2025-02-20	Distributed	Yes	Survey completion incentive
+P-012	Gift Card (Amazon)	$50	Email	2025-02-22	Distributed	Yes	Interview participation
+P-013	Gift Card (Amazon)	$25	Email	2025-02-22	Failed	—	Email bounced; alternate address requested
+P-014	Gift Card (Target)	$50	In-person	2025-02-25	Scheduled	—	Focus group scheduled 2/25
+P-015	Gift Card (Amazon)	$25	Email	2025-02-25	Distributed	Yes	Survey completion incentive; late response batch
