@@ -64,13 +64,37 @@ except FileNotFoundError:
 
 policy_events = load_policy_events()
 
-# Key policy dates for chart overlays — staggered dy to prevent overlap
-KEY_POLICY_DATES = pd.DataFrame([
-    {"date": pd.Timestamp("2022-03-15"), "label": "Maryland (Mar '22)", "dy": -8},
-    {"date": pd.Timestamp("2022-04-18"), "label": "Colorado (Apr '22)", "dy": -22},
-    {"date": pd.Timestamp("2023-06-01"), "label": "15 states (mid-'23)", "dy": -8},
-    {"date": pd.Timestamp("2024-06-05"), "label": "Connecticut (Jun '24)", "dy": -22},
+# Key policy dates for chart overlays — split into two tiers to stagger vertically
+KEY_POLICY_TIER1 = pd.DataFrame([
+    {"date": pd.Timestamp("2022-03-15"), "label": "Maryland (Mar '22)"},
+    {"date": pd.Timestamp("2023-06-01"), "label": "15 states (mid-'23)"},
 ])
+KEY_POLICY_TIER2 = pd.DataFrame([
+    {"date": pd.Timestamp("2022-04-18"), "label": "Colorado (Apr '22)"},
+    {"date": pd.Timestamp("2024-06-05"), "label": "Connecticut (Jun '24)"},
+])
+KEY_POLICY_ALL = pd.concat([KEY_POLICY_TIER1, KEY_POLICY_TIER2], ignore_index=True)
+
+
+def policy_rules_and_labels():
+    """Create Altair layers for policy event vertical rules + staggered text labels."""
+    rules = (
+        alt.Chart(KEY_POLICY_ALL)
+        .mark_rule(strokeDash=[4, 4], strokeWidth=1.5, color="#C0392B")
+        .encode(x="date:T")
+    )
+    labels_tier1 = (
+        alt.Chart(KEY_POLICY_TIER1)
+        .mark_text(align="left", dx=5, dy=-8, fontSize=10, color="#C0392B", fontStyle="italic")
+        .encode(x="date:T", y=alt.value(0), text="label:N")
+    )
+    labels_tier2 = (
+        alt.Chart(KEY_POLICY_TIER2)
+        .mark_text(align="left", dx=5, dy=-22, fontSize=10, color="#C0392B", fontStyle="italic")
+        .encode(x="date:T", y=alt.value(0), text="label:N")
+    )
+    return rules + labels_tier1 + labels_tier2
+
 
 # ── Custom CSS ───────────────────────────────────────────────────────────────
 st.markdown("""
@@ -297,22 +321,7 @@ bars = (
     .properties(height=350)
 )
 
-# Policy event vertical rules
-rules = (
-    alt.Chart(KEY_POLICY_DATES)
-    .mark_rule(strokeDash=[4, 4], strokeWidth=1.5, color="#C0392B")
-    .encode(x="date:T")
-)
-
-rule_labels = (
-    alt.Chart(KEY_POLICY_DATES)
-    .mark_text(
-        align="left", dx=5, fontSize=10, color="#C0392B", angle=0, fontStyle="italic",
-    )
-    .encode(x="date:T", y=alt.value(0), text="label:N", dy="dy:Q")
-)
-
-volume_chart = (bars + rules + rule_labels).interactive()
+volume_chart = (bars + policy_rules_and_labels()).interactive()
 st.altair_chart(volume_chart, use_container_width=True)
 
 # Policy events legend with context
@@ -642,19 +651,7 @@ if keyword_rows:
         .properties(height=350)
     )
 
-    kw_rules = (
-        alt.Chart(KEY_POLICY_DATES)
-        .mark_rule(strokeDash=[4, 4], strokeWidth=1.5, color="#C0392B")
-        .encode(x="date:T")
-    )
-
-    kw_rule_labels = (
-        alt.Chart(KEY_POLICY_DATES)
-        .mark_text(align="left", dx=5, fontSize=10, color="#C0392B", fontStyle="italic")
-        .encode(x="date:T", y=alt.value(0), text="label:N", dy="dy:Q")
-    )
-
-    kw_chart = (kw_lines + kw_rules + kw_rule_labels).interactive()
+    kw_chart = (kw_lines + policy_rules_and_labels()).interactive()
     st.altair_chart(kw_chart, use_container_width=True)
 
     st.markdown("""
