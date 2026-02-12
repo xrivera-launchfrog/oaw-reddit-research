@@ -6,12 +6,43 @@ from pathlib import Path
 
 # ── Page Config ──────────────────────────────────────────────────────────────
 st.set_page_config(
-    page_title="Skills-Based Hiring Sentiment Dashboard",
+    page_title="Skills-Based Hiring in Public Discourse",
+    page_icon=None,
     layout="wide",
 )
 
+# ── Altair Theme ─────────────────────────────────────────────────────────────
+PALETTE = ["#2C3E50", "#E67E22", "#7F8C8D", "#27AE60", "#8E44AD", "#C0392B"]
+
+def research_theme():
+    return {
+        "config": {
+            "background": "#FAFAFA",
+            "title": {"fontSize": 14, "font": "system-ui, sans-serif", "anchor": "start", "color": "#2C3E50"},
+            "axis": {
+                "labelFontSize": 11,
+                "titleFontSize": 12,
+                "titleColor": "#2C3E50",
+                "labelColor": "#5D6D7E",
+                "gridColor": "#E5E7EB",
+                "domainColor": "#BDC3C7",
+                "tickColor": "#BDC3C7",
+            },
+            "axisX": {"grid": False},
+            "axisY": {"gridDash": [2, 4]},
+            "legend": {"labelFontSize": 11, "titleFontSize": 12, "labelColor": "#5D6D7E"},
+            "view": {"stroke": None},
+            "range": {"category": PALETTE},
+        }
+    }
+
+alt.themes.register("research", research_theme)
+alt.themes.enable("research")
+
 # ── Load Data ────────────────────────────────────────────────────────────────
-DATA_PATH = Path(__file__).resolve().parent / "data" / "cleaned" / "reddit_skills_cleaned.csv"
+DATA_DIR = Path(__file__).resolve().parent / "data"
+DATA_PATH = DATA_DIR / "cleaned" / "reddit_skills_cleaned.csv"
+POLICY_PATH = DATA_DIR / "policy_events.csv"
 
 @st.cache_data
 def load_data():
@@ -20,16 +51,89 @@ def load_data():
     df["month"] = pd.to_datetime(df["month"])
     return df
 
+@st.cache_data
+def load_policy_events():
+    pe = pd.read_csv(POLICY_PATH, parse_dates=["date"])
+    return pe
+
 try:
     df = load_data()
 except FileNotFoundError:
     st.error(f"Data file not found at {DATA_PATH}. Run `python scripts/clean_data.py` first.")
     st.stop()
 
-# ── Sidebar Filters ──────────────────────────────────────────────────────────
-st.sidebar.header("Filters")
+policy_events = load_policy_events()
 
-# Date range
+# Key policy dates for chart overlays
+KEY_POLICY_DATES = pd.DataFrame([
+    {"date": pd.Timestamp("2022-03-15"), "label": "MD removes degree req."},
+    {"date": pd.Timestamp("2022-04-18"), "label": "CO executive order"},
+    {"date": pd.Timestamp("2023-06-01"), "label": "15 states committed"},
+    {"date": pd.Timestamp("2024-06-05"), "label": "CT legislation signed"},
+])
+
+# ── Custom CSS ───────────────────────────────────────────────────────────────
+st.markdown("""
+<style>
+    /* Reduce top padding */
+    .block-container { padding-top: 2rem; }
+
+    /* Stat callout cards */
+    .stat-card {
+        background: #FFFFFF;
+        border: 1px solid #E5E7EB;
+        border-radius: 8px;
+        padding: 1.25rem 1.5rem;
+        text-align: center;
+    }
+    .stat-card .stat-value {
+        font-size: 2.25rem;
+        font-weight: 700;
+        color: #2C3E50;
+        line-height: 1.1;
+        margin-bottom: 0.25rem;
+    }
+    .stat-card .stat-label {
+        font-size: 0.85rem;
+        color: #7F8C8D;
+        line-height: 1.3;
+    }
+
+    /* Section research question styling */
+    .research-q {
+        font-style: italic;
+        color: #5D6D7E;
+        font-size: 0.95rem;
+        margin-bottom: 0.5rem;
+        border-left: 3px solid #BDC3C7;
+        padding-left: 0.75rem;
+    }
+
+    /* Mute dividers */
+    hr { border-color: #E5E7EB !important; }
+
+    /* Featured quote cards */
+    .quote-card {
+        background: #FFFFFF;
+        border-left: 3px solid #2C3E50;
+        padding: 1rem 1.25rem;
+        margin-bottom: 0.75rem;
+        border-radius: 0 6px 6px 0;
+        font-size: 0.9rem;
+        line-height: 1.5;
+        color: #34495E;
+    }
+    .quote-meta {
+        font-size: 0.78rem;
+        color: #95A5A6;
+        margin-top: 0.5rem;
+    }
+</style>
+""", unsafe_allow_html=True)
+
+# ── Sidebar Filters ──────────────────────────────────────────────────────────
+st.sidebar.markdown("### Filters")
+
 min_date = df["date"].min().date()
 max_date = df["date"].max().date()
 date_range = st.sidebar.date_input(
@@ -39,72 +143,84 @@ date_range = st.sidebar.date_input(
     max_value=max_date,
 )
 
-# Subreddit filter
 all_subs = sorted(df["subreddit"].unique())
-selected_subs = st.sidebar.multiselect(
-    "Subreddits",
-    options=all_subs,
-    default=all_subs,
-)
+selected_subs = st.sidebar.multiselect("Subreddits", options=all_subs, default=all_subs)
 
-# Content type filter
 content_type = st.sidebar.radio("Content type", ["All", "Posts only", "Comments only"])
 
+all_tiers = sorted(df["engagement_tier"].unique())
+selected_tiers = st.sidebar.multiselect("Engagement tier", options=all_tiers, default=all_tiers)
+
 # Apply filters
+if len(date_range) == 2:
+    d_start, d_end = date_range
+else:
+    d_start, d_end = min_date, max_date
+
 mask = (
-    (df["date"].dt.date >= date_range[0])
-    & (df["date"].dt.date <= date_range[1])
+    (df["date"].dt.date >= d_start)
+    & (df["date"].dt.date <= d_end)
     & (df["subreddit"].isin(selected_subs))
+    & (df["engagement_tier"].isin(selected_tiers))
 )
 if content_type == "Posts only":
     mask = mask & (df["type"] == "post")
 elif content_type == "Comments only":
     mask = mask & (df["type"] == "comment")
+
 filtered = df[mask].copy()
 
-# ── Title ────────────────────────────────────────────────────────────────────
-st.title("Skills-Based Hiring Sentiment Dashboard")
-st.caption("Reddit discourse analysis for Opportunity@Work — Xavier Rivera")
+st.sidebar.markdown("---")
+st.sidebar.markdown(f"**Showing {len(filtered):,} of {len(df):,} records**")
+
+# ── Section 1: Title & Research Context ──────────────────────────────────────
+st.markdown("# Skills-Based Hiring in Public Discourse")
+st.markdown(
+    "*How Reddit communities discuss workforce reform, degree requirements, and the opportunity gap*"
+)
+
+st.markdown("""
+In the United States, over 70 million workers are **Skilled Through Alternative Routes (STARs)** —
+they have the skills employers need but lack a four-year degree. A growing body of research documents
+the "paper ceiling" that excludes these workers from quality jobs despite demonstrated competency.
+This dashboard explores how public discourse on Reddit reflects — and sometimes anticipates — the
+policy shifts that have made skills-based hiring a bipartisan priority across 25 states.
+""")
+
+# Stat callout cards
+col1, col2, col3 = st.columns(3)
+with col1:
+    st.markdown("""
+    <div class="stat-card">
+        <div class="stat-value">70M+</div>
+        <div class="stat-label">Workers are STARs in the US</div>
+    </div>
+    """, unsafe_allow_html=True)
+with col2:
+    st.markdown("""
+    <div class="stat-card">
+        <div class="stat-value">25</div>
+        <div class="stat-label">States committed to removing degree requirements</div>
+    </div>
+    """, unsafe_allow_html=True)
+with col3:
+    st.markdown("""
+    <div class="stat-card">
+        <div class="stat-value">2.5pp</div>
+        <div class="stat-label">Annual decline in degree requirements per year of policy exposure</div>
+    </div>
+    """, unsafe_allow_html=True)
+
+st.caption("Blair, Debroy & Heck 2021; Heck, Corcoran de Castillo, Blair & Debroy 2024")
 
 if filtered.empty:
     st.warning("No data matches the current filters. Adjust the sidebar filters.")
     st.stop()
 
-# ── Section 1: Executive Summary ─────────────────────────────────────────────
-st.header("1. Executive Summary")
-
-col1, col2, col3, col4, col5 = st.columns(5)
-with col1:
-    st.metric("Total Records", f"{len(filtered):,}")
-with col2:
-    total_posts = (filtered["type"] == "post").sum()
-    st.metric("Posts", f"{total_posts:,}")
-with col3:
-    total_comments = (filtered["type"] == "comment").sum()
-    st.metric("Comments", f"{total_comments:,}")
-with col4:
-    avg_sentiment = filtered["sentiment_score"].mean()
-    st.metric("Avg Sentiment", f"{avg_sentiment:+.3f}")
-with col5:
-    unique_threads = filtered["thread_id"].nunique()
-    st.metric("Unique Threads", f"{unique_threads:,}")
-
-# Sentiment breakdown bar
-sent_counts = filtered["sentiment_label"].value_counts()
-pos_pct = sent_counts.get("positive", 0) / len(filtered) * 100
-neu_pct = sent_counts.get("neutral", 0) / len(filtered) * 100
-neg_pct = sent_counts.get("negative", 0) / len(filtered) * 100
-
-col_a, col_b, col_c = st.columns(3)
-with col_a:
-    st.metric("Positive", f"{pos_pct:.1f}%")
-with col_b:
-    st.metric("Neutral", f"{neu_pct:.1f}%")
-with col_c:
-    st.metric("Negative", f"{neg_pct:.1f}%")
-
-# ── Section 2: Thread vs. Post Analysis ──────────────────────────────────────
-st.header("2. Post & Comment Volume Over Time")
+# ── Section 2: Discourse Volume & Policy Events ─────────────────────────────
+st.markdown("---")
+st.markdown("## Discourse Volume & Policy Events")
+st.markdown('<p class="research-q">Does online discussion of skills-based hiring track with real-world policy action?</p>', unsafe_allow_html=True)
 
 monthly = (
     filtered.groupby(["month", "type"])
@@ -112,53 +228,242 @@ monthly = (
     .reset_index(name="count")
 )
 
-volume_chart = (
+bars = (
     alt.Chart(monthly)
-    .mark_bar(opacity=0.8)
+    .mark_bar(opacity=0.85)
     .encode(
         x=alt.X("month:T", title="Month", axis=alt.Axis(format="%b %Y")),
-        y=alt.Y("count:Q", title="Count"),
-        color=alt.Color("type:N", title="Type", scale=alt.Scale(
-            domain=["post", "comment"],
-            range=["#4C78A8", "#F58518"],
-        )),
-        tooltip=["month:T", "type:N", "count:Q"],
+        y=alt.Y("count:Q", title="Records", stack="zero"),
+        color=alt.Color(
+            "type:N",
+            title="Type",
+            scale=alt.Scale(domain=["post", "comment"], range=["#2C3E50", "#7F8C8D"]),
+        ),
+        tooltip=[
+            alt.Tooltip("month:T", title="Month", format="%B %Y"),
+            "type:N",
+            "count:Q",
+        ],
+    )
+    .properties(height=350)
+)
+
+# Policy event vertical rules
+rules = (
+    alt.Chart(KEY_POLICY_DATES)
+    .mark_rule(strokeDash=[4, 4], strokeWidth=1.5, color="#C0392B")
+    .encode(x="date:T")
+)
+
+rule_labels = (
+    alt.Chart(KEY_POLICY_DATES)
+    .mark_text(
+        align="left", dx=5, dy=-5, fontSize=10, color="#C0392B", angle=0, fontStyle="italic",
+    )
+    .encode(x="date:T", text="label:N")
+)
+
+volume_chart = (bars + rules + rule_labels).interactive()
+st.altair_chart(volume_chart, use_container_width=True)
+
+st.caption(
+    "Vertical lines mark major policy milestones in the skills-based hiring movement. "
+    "Spikes in discourse often follow — but sometimes precede — formal state action."
+)
+
+# ── Section 3: Sentiment Landscape ───────────────────────────────────────────
+st.markdown("---")
+st.markdown("## Sentiment Landscape")
+st.markdown('<p class="research-q">How does the tone of discourse vary across communities?</p>', unsafe_allow_html=True)
+
+col_left, col_right = st.columns(2)
+
+# Left: Average sentiment by subreddit (horizontal bar)
+sub_sentiment = (
+    filtered.groupby("subreddit")["sentiment_score"]
+    .mean()
+    .reset_index()
+    .sort_values("sentiment_score")
+)
+
+with col_left:
+    st.markdown("#### Average Sentiment by Subreddit")
+    sent_bar = (
+        alt.Chart(sub_sentiment)
+        .mark_bar(cornerRadiusEnd=3)
+        .encode(
+            y=alt.Y("subreddit:N", title=None, sort=alt.EncodingSortField("sentiment_score", order="ascending")),
+            x=alt.X("sentiment_score:Q", title="Average Sentiment"),
+            color=alt.condition(
+                alt.datum.sentiment_score > 0,
+                alt.value("#2C3E50"),
+                alt.value("#C0392B"),
+            ),
+            tooltip=["subreddit:N", alt.Tooltip("sentiment_score:Q", format=".3f")],
+        )
+        .properties(height=250)
+    )
+    st.altair_chart(sent_bar, use_container_width=True)
+
+# Right: Sentiment distribution histogram for filtered data
+with col_right:
+    st.markdown("#### Sentiment Distribution")
+    sent_hist = (
+        alt.Chart(filtered)
+        .mark_bar(opacity=0.8, cornerRadiusEnd=2)
+        .encode(
+            x=alt.X("sentiment_score:Q", bin=alt.Bin(maxbins=30), title="Sentiment Score"),
+            y=alt.Y("count():Q", title="Count"),
+            color=alt.value("#2C3E50"),
+            tooltip=["count():Q"],
+        )
+        .properties(height=250)
+    )
+    st.altair_chart(sent_hist, use_container_width=True)
+
+# Sentiment over time
+st.markdown("#### Sentiment Trends Over Time")
+monthly_sent = (
+    filtered.groupby(["month", "subreddit"])["sentiment_score"]
+    .mean()
+    .reset_index()
+)
+
+sentiment_time = (
+    alt.Chart(monthly_sent)
+    .mark_line(point=alt.OverlayMarkDef(size=30), strokeWidth=2)
+    .encode(
+        x=alt.X("month:T", title="Month", axis=alt.Axis(format="%b %Y")),
+        y=alt.Y("sentiment_score:Q", title="Avg Sentiment"),
+        color=alt.Color("subreddit:N", title="Subreddit"),
+        tooltip=[
+            alt.Tooltip("month:T", title="Month", format="%B %Y"),
+            "subreddit:N",
+            alt.Tooltip("sentiment_score:Q", format=".3f"),
+        ],
     )
     .properties(height=350)
     .interactive()
 )
-st.altair_chart(volume_chart, use_container_width=True)
+st.altair_chart(sentiment_time, use_container_width=True)
 
-# Engagement distribution
-st.subheader("Engagement Distribution by Content Type")
-engagement_data = filtered[["type", "score"]].copy()
-engagement_hist = (
-    alt.Chart(engagement_data)
-    .mark_bar(opacity=0.7)
-    .encode(
-        x=alt.X("score:Q", bin=alt.Bin(maxbins=30), title="Score"),
-        y=alt.Y("count():Q", title="Count"),
-        color=alt.Color("type:N", title="Type", scale=alt.Scale(
-            domain=["post", "comment"],
-            range=["#4C78A8", "#F58518"],
-        )),
-        tooltip=["type:N", "count():Q"],
+# ── Section 4: Discourse Framing Analysis ────────────────────────────────────
+st.markdown("---")
+st.markdown("## Discourse Framing Analysis")
+st.markdown('<p class="research-q">What frames dominate the conversation — and do they align with the academic findings?</p>', unsafe_allow_html=True)
+
+FRAMES = {
+    "Reform Advocacy": r"(?i)(?:skills?.based|STARs|paper.ceiling|remove.degree|hiring.reform)",
+    "Skepticism & Barriers": r"(?i)(?:won'?t.change|HR.push.?back|classification.system|OPM|bureaucra)",
+    "RIF & Workforce Cuts": r"(?i)(?:\bRIF\b|layoff|DOGE|reduction.in.force|\bfired\b)",
+    "Practitioner Experience": r"(?i)(?:hired|my.team|my.agency|GS-\d|I'?ve.seen|in.my.experience)",
+    "Career Transition": r"(?i)(?:career.chang|transition|military.to.civilian|no.degree)",
+}
+
+# Vectorized frame classification
+frame_dfs = []
+for frame, pattern in FRAMES.items():
+    matches = filtered[filtered["body"].str.contains(pattern, na=False)]
+    if not matches.empty:
+        chunk = matches[["month", "sentiment_score"]].copy()
+        chunk["frame"] = frame
+        frame_dfs.append(chunk)
+
+if frame_dfs:
+    frame_df = pd.concat(frame_dfs, ignore_index=True)
+
+    # Frame distribution
+    frame_counts = frame_df["frame"].value_counts().reset_index()
+    frame_counts.columns = ["frame", "count"]
+
+    col_f1, col_f2 = st.columns(2)
+
+    with col_f1:
+        st.markdown("#### Frame Distribution")
+        frame_bar = (
+            alt.Chart(frame_counts)
+            .mark_bar(cornerRadiusEnd=3)
+            .encode(
+                y=alt.Y("frame:N", title=None, sort=alt.EncodingSortField("count", order="descending")),
+                x=alt.X("count:Q", title="Records matching frame"),
+                color=alt.Color("frame:N", legend=None),
+                tooltip=["frame:N", "count:Q"],
+            )
+            .properties(height=250)
+        )
+        st.altair_chart(frame_bar, use_container_width=True)
+
+    # Frame x Sentiment heatmap
+    with col_f2:
+        st.markdown("#### Avg Sentiment by Frame")
+        frame_sent = (
+            frame_df.groupby("frame")["sentiment_score"]
+            .mean()
+            .reset_index()
+            .sort_values("sentiment_score")
+        )
+        heatmap = (
+            alt.Chart(frame_sent)
+            .mark_bar(cornerRadiusEnd=3)
+            .encode(
+                y=alt.Y("frame:N", title=None, sort=alt.EncodingSortField("sentiment_score", order="ascending")),
+                x=alt.X("sentiment_score:Q", title="Average Sentiment"),
+                color=alt.Color(
+                    "sentiment_score:Q",
+                    title="Sentiment",
+                    scale=alt.Scale(scheme="redyellowgreen", domain=[-0.2, 0.4]),
+                ),
+                tooltip=["frame:N", alt.Tooltip("sentiment_score:Q", format=".3f")],
+            )
+            .properties(height=250)
+        )
+        st.altair_chart(heatmap, use_container_width=True)
+
+    # Frame trends over time
+    st.markdown("#### Frame Trends Over Time")
+    frame_time = (
+        frame_df.groupby(["month", "frame"])
+        .size()
+        .reset_index(name="count")
     )
-    .properties(height=300)
-    .interactive()
-)
-st.altair_chart(engagement_hist, use_container_width=True)
+    frame_area = (
+        alt.Chart(frame_time)
+        .mark_area(opacity=0.7)
+        .encode(
+            x=alt.X("month:T", title="Month", axis=alt.Axis(format="%b %Y")),
+            y=alt.Y("count:Q", title="Records", stack="zero"),
+            color=alt.Color("frame:N", title="Frame"),
+            tooltip=[
+                alt.Tooltip("month:T", title="Month", format="%B %Y"),
+                "frame:N",
+                "count:Q",
+            ],
+        )
+        .properties(height=350)
+        .interactive()
+    )
+    st.altair_chart(frame_area, use_container_width=True)
 
-# ── Section 3: Skills-Based Hiring Keyword Analysis ──────────────────────────
-st.header("3. Skills-Based Hiring Keyword Trends")
+    st.caption(
+        "A single record can match multiple frames. "
+        "Reform Advocacy and Practitioner Experience tend to carry more positive sentiment, "
+        "while RIF-adjacent discourse is consistently negative."
+    )
+else:
+    st.info("No discourse frames matched in the filtered data.")
+
+# ── Section 5: Keyword Trends in Context ─────────────────────────────────────
+st.markdown("---")
+st.markdown("## Keyword Trends in Context")
+st.markdown('<p class="research-q">Are key terms from the academic literature gaining traction in public discourse?</p>', unsafe_allow_html=True)
 
 keywords = {
     "skills-based": r"(?i)skills?.based",
     "STARs": r"(?i)\bstars?\b",
     "degree requirement": r"(?i)degree.?require",
-    "hiring reform": r"(?i)hiring.?reform",
-    "RIF": r"(?i)\brif\b",
+    "paper ceiling": r"(?i)paper.ceiling",
     "competency": r"(?i)competen",
+    "RIF": r"(?i)\brif\b",
 }
 
 keyword_rows = []
@@ -174,107 +479,181 @@ for label, pattern in keywords.items():
 
 if keyword_rows:
     kw_df = pd.concat(keyword_rows, ignore_index=True)
-    kw_chart = (
+
+    kw_lines = (
         alt.Chart(kw_df)
-        .mark_line(point=True)
+        .mark_line(point=alt.OverlayMarkDef(size=30), strokeWidth=2)
         .encode(
             x=alt.X("month:T", title="Month", axis=alt.Axis(format="%b %Y")),
             y=alt.Y("mentions:Q", title="Mentions"),
             color=alt.Color("keyword:N", title="Keyword"),
-            tooltip=["month:T", "keyword:N", "mentions:Q"],
+            tooltip=[
+                alt.Tooltip("month:T", title="Month", format="%B %Y"),
+                "keyword:N",
+                "mentions:Q",
+            ],
         )
         .properties(height=350)
-        .interactive()
     )
+
+    kw_rules = (
+        alt.Chart(KEY_POLICY_DATES)
+        .mark_rule(strokeDash=[4, 4], strokeWidth=1.5, color="#C0392B")
+        .encode(x="date:T")
+    )
+
+    kw_rule_labels = (
+        alt.Chart(KEY_POLICY_DATES)
+        .mark_text(align="left", dx=5, dy=-5, fontSize=10, color="#C0392B", fontStyle="italic")
+        .encode(x="date:T", text="label:N")
+    )
+
+    kw_chart = (kw_lines + kw_rules + kw_rule_labels).interactive()
     st.altair_chart(kw_chart, use_container_width=True)
+
+    # Keyword co-occurrence
+    st.markdown("#### Keyword Co-occurrence")
+    st.caption("When someone mentions a keyword, what other terms appear in the same record?")
+
+    co_data = []
+    for primary_label, primary_pattern in keywords.items():
+        primary_mask = filtered["body"].str.contains(primary_pattern, na=False)
+        primary_count = primary_mask.sum()
+        if primary_count == 0:
+            continue
+        for secondary_label, secondary_pattern in keywords.items():
+            if secondary_label == primary_label:
+                continue
+            both = (primary_mask & filtered["body"].str.contains(secondary_pattern, na=False)).sum()
+            pct = both / primary_count * 100 if primary_count > 0 else 0
+            co_data.append({
+                "primary": primary_label,
+                "co-occurs with": secondary_label,
+                "co-occurrence %": round(pct, 1),
+            })
+
+    if co_data:
+        co_df = pd.DataFrame(co_data)
+        co_heatmap = (
+            alt.Chart(co_df)
+            .mark_rect(cornerRadius=3)
+            .encode(
+                x=alt.X("primary:N", title="Primary Keyword"),
+                y=alt.Y("co-occurs with:N", title="Co-occurring Keyword"),
+                color=alt.Color(
+                    "co-occurrence %:Q",
+                    title="Co-occurrence %",
+                    scale=alt.Scale(scheme="blues"),
+                ),
+                tooltip=["primary:N", "co-occurs with:N", alt.Tooltip("co-occurrence %:Q", format=".1f")],
+            )
+            .properties(height=250)
+        )
+        st.altair_chart(co_heatmap, use_container_width=True)
 else:
     st.info("No keyword matches found in the filtered data.")
 
-# ── Section 4: Sentiment Trends Over Time ────────────────────────────────────
-st.header("4. Sentiment Trends by Subreddit")
+# ── Section 6: Voices from the Discourse ─────────────────────────────────────
+st.markdown("---")
+st.markdown("## Voices from the Discourse")
+st.markdown('<p class="research-q">What are people actually saying?</p>', unsafe_allow_html=True)
 
-monthly_sent = (
-    filtered.groupby(["month", "subreddit"])["sentiment_score"]
-    .mean()
-    .reset_index()
-)
-
-sentiment_chart = (
-    alt.Chart(monthly_sent)
-    .mark_line(point=True, strokeWidth=2)
-    .encode(
-        x=alt.X("month:T", title="Month", axis=alt.Axis(format="%b %Y")),
-        y=alt.Y("sentiment_score:Q", title="Avg Sentiment Score"),
-        color=alt.Color("subreddit:N", title="Subreddit"),
-        tooltip=["month:T", "subreddit:N", alt.Tooltip("sentiment_score:Q", format=".3f")],
+# Featured quotes — top upvoted
+st.markdown("#### Featured Quotes")
+top_records = filtered.nlargest(5, "score")
+for _, row in top_records.iterrows():
+    body_text = str(row["body"])[:500]
+    if len(str(row["body"])) > 500:
+        body_text += "..."
+    sentiment_color = "#27AE60" if row["sentiment_label"] == "positive" else (
+        "#C0392B" if row["sentiment_label"] == "negative" else "#7F8C8D"
     )
-    .properties(height=400)
-    .interactive()
-)
-st.altair_chart(sentiment_chart, use_container_width=True)
-
-# ── Section 5: Subreddit Comparison ──────────────────────────────────────────
-st.header("5. Subreddit Comparison")
-
-sub_stats = (
-    filtered.groupby("subreddit")
-    .agg(
-        posts=("type", lambda x: (x == "post").sum()),
-        comments=("type", lambda x: (x == "comment").sum()),
-        avg_score=("score", "mean"),
-        avg_sentiment=("sentiment_score", "mean"),
+    st.markdown(
+        f'<div class="quote-card">{body_text}'
+        f'<div class="quote-meta">r/{row["subreddit"]} · {row["date"].strftime("%b %d, %Y")} · '
+        f'Score: {row["score"]} · '
+        f'<span style="color:{sentiment_color}">{row["sentiment_label"]}</span></div></div>',
+        unsafe_allow_html=True,
     )
-    .reset_index()
+
+# Searchable data table
+st.markdown("#### Browse All Records")
+search_query = st.text_input("Search text content", placeholder="e.g. skills-based, degree, RIF...")
+
+table_data = filtered.copy()
+if search_query:
+    table_data = table_data[
+        table_data["body"].str.contains(search_query, case=False, na=False)
+    ]
+
+display_cols = ["date", "subreddit", "type", "sentiment_label", "score", "body"]
+table_display = table_data[display_cols].copy()
+table_display["date"] = table_display["date"].dt.strftime("%Y-%m-%d")
+table_display = table_display.sort_values("date", ascending=False).reset_index(drop=True)
+
+st.dataframe(
+    table_display,
+    column_config={
+        "date": st.column_config.TextColumn("Date", width="small"),
+        "subreddit": st.column_config.TextColumn("Subreddit", width="small"),
+        "type": st.column_config.TextColumn("Type", width="small"),
+        "sentiment_label": st.column_config.TextColumn("Sentiment", width="small"),
+        "score": st.column_config.NumberColumn("Score", width="small"),
+        "body": st.column_config.TextColumn("Content", width="large"),
+    },
+    use_container_width=True,
+    height=400,
 )
 
-# Volume comparison
-sub_volume = sub_stats.melt(
-    id_vars="subreddit",
-    value_vars=["posts", "comments"],
-    var_name="type",
-    value_name="count",
-)
+st.caption(f"Showing {len(table_display):,} records" + (f' matching "{search_query}"' if search_query else ""))
 
-sub_chart = (
-    alt.Chart(sub_volume)
-    .mark_bar(opacity=0.85)
-    .encode(
-        x=alt.X("subreddit:N", title="Subreddit", sort="-y"),
-        y=alt.Y("count:Q", title="Count"),
-        color=alt.Color("type:N", title="Type", scale=alt.Scale(
-            domain=["posts", "comments"],
-            range=["#4C78A8", "#F58518"],
-        )),
-        xOffset="type:N",
-        tooltip=["subreddit:N", "type:N", "count:Q"],
-    )
-    .properties(height=350)
-    .interactive()
-)
-st.altair_chart(sub_chart, use_container_width=True)
+# ── Section 7: Methodology & Data Notes ──────────────────────────────────────
+st.markdown("---")
+st.markdown("## Methodology & Data Notes")
 
-# Sentiment by subreddit
-st.subheader("Average Sentiment by Subreddit")
-sent_bar = (
-    alt.Chart(sub_stats)
-    .mark_bar()
-    .encode(
-        x=alt.X("subreddit:N", title="Subreddit", sort="-y"),
-        y=alt.Y("avg_sentiment:Q", title="Avg Sentiment Score"),
-        color=alt.condition(
-            alt.datum.avg_sentiment > 0,
-            alt.value("#4C78A8"),
-            alt.value("#E45756"),
-        ),
-        tooltip=["subreddit:N", alt.Tooltip("avg_sentiment:Q", format=".3f")],
-    )
-    .properties(height=300)
-)
-st.altair_chart(sent_bar, use_container_width=True)
+with st.expander("Data collection, processing, and limitations", expanded=False):
+    st.markdown("""
+**Data source:** Reddit, collected via PRAW (Python Reddit API Wrapper) and Pushshift for historical coverage.
 
-# ── Footer ───────────────────────────────────────────────────────────────────
-st.divider()
-st.caption(
-    "Built by Xavier Rivera | Data collected via Reddit API (PRAW) and Pushshift | "
-    "Sentiment analysis via TextBlob | Dashboard powered by Streamlit"
+**Collection period:** January 2022 -- June 2025
+
+**Subreddits sampled:** r/FedEmployees, r/feddiscussion, r/govfire, r/jobs, r/recruiting,
+r/humanresources, r/deptHHS, r/careerguidance
+
+**Cleaning pipeline:**
+- Deduplication (12 duplicate records removed)
+- Missing value handling (3 rows with null body text dropped)
+- Date parsing and month aggregation
+- Sentiment scoring via TextBlob polarity (-1.0 to +1.0)
+- Engagement tier binning (low / medium / high / viral)
+- 15-field data dictionary maintained alongside the dataset
+
+**Sentiment model:** TextBlob polarity scores with thresholds at +/-0.1 for positive/negative
+classification. Manual validation on a random sample of n=50 records showed **84% agreement**
+with human judgment. TextBlob tends to undercount sarcasm and domain-specific negativity.
+
+**Limitations:**
+- Small corpus (n=491) limits statistical power for subreddit-level comparisons
+- TextBlob's lexicon-based approach has limited nuance for policy discourse
+- Reddit's user base skews younger, male, and more tech-savvy than the general population
+- Subreddit culture effects may drive sentiment more than topic-level factors
+- Data collected under Reddit API rate limits; some threads may be missing
+
+**Academic references:**
+- Blair, P. Q., Debroy, S., & Heck, J. (2021). [Navigating with the STARs: Reimagining equitable pathways
+  to mobility.](https://opportunityatwork.org/our-solutions/stars-insights/navigating-stars-report/) Opportunity@Work.
+- Heck, J., Corcoran de Castillo, B., Blair, P. Q., & Debroy, S. (2024). [The Paper Ceiling: State policy
+  progress on skills-based hiring.](https://opportunityatwork.org/our-solutions/stars-insights/paper-ceiling-state-policy/) Opportunity@Work.
+    """)
+
+# ── Section 8: Footer ────────────────────────────────────────────────────────
+st.markdown("---")
+st.markdown(
+    '<p style="text-align:center; color:#95A5A6; font-size:0.85rem;">'
+    "Research and analysis by Xavier Rivera | Opportunity@Work<br>"
+    '<a href="https://github.com/xrivera-launchfrog/oaw-reddit-research" style="color:#7F8C8D;">GitHub</a>'
+    " · "
+    '<a href="https://xavierrivera.org" style="color:#7F8C8D;">Portfolio</a>'
+    "</p>",
+    unsafe_allow_html=True,
 )
