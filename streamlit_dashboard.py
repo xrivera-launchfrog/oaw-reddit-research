@@ -64,36 +64,40 @@ except FileNotFoundError:
 
 policy_events = load_policy_events()
 
-# Key policy dates for chart overlays — split into two tiers to stagger vertically
-KEY_POLICY_TIER1 = pd.DataFrame([
-    {"date": pd.Timestamp("2022-03-15"), "label": "Maryland (Mar '22)"},
-    {"date": pd.Timestamp("2023-06-01"), "label": "15 states (mid-'23)"},
-])
-KEY_POLICY_TIER2 = pd.DataFrame([
-    {"date": pd.Timestamp("2022-04-18"), "label": "Colorado (Apr '22)"},
-    {"date": pd.Timestamp("2024-06-05"), "label": "Connecticut (Jun '24)"},
-])
-KEY_POLICY_ALL = pd.concat([KEY_POLICY_TIER1, KEY_POLICY_TIER2], ignore_index=True)
+# Key policy dates — each with a distinct color for chart rules, labels, and legend dots
+POLICY_EVENTS = [
+    {"date": pd.Timestamp("2022-03-15"), "label": "Maryland (Mar '22)", "color": "#2980B9", "dy": -8},
+    {"date": pd.Timestamp("2022-04-18"), "label": "Colorado (Apr '22)", "color": "#E67E22", "dy": -22},
+    {"date": pd.Timestamp("2023-06-01"), "label": "15 states (mid-'23)", "color": "#8E44AD", "dy": -8},
+    {"date": pd.Timestamp("2024-06-05"), "label": "Connecticut (Jun '24)", "color": "#27AE60", "dy": -22},
+]
 
 
 def policy_rules_and_labels():
-    """Create Altair layers for policy event vertical rules + staggered text labels."""
-    rules = (
-        alt.Chart(KEY_POLICY_ALL)
-        .mark_rule(strokeDash=[4, 4], strokeWidth=1.5, color="#C0392B")
-        .encode(x="date:T")
-    )
-    labels_tier1 = (
-        alt.Chart(KEY_POLICY_TIER1)
-        .mark_text(align="left", dx=5, dy=-8, fontSize=10, color="#C0392B", fontStyle="italic")
-        .encode(x="date:T", y=alt.value(0), text="label:N")
-    )
-    labels_tier2 = (
-        alt.Chart(KEY_POLICY_TIER2)
-        .mark_text(align="left", dx=5, dy=-22, fontSize=10, color="#C0392B", fontStyle="italic")
-        .encode(x="date:T", y=alt.value(0), text="label:N")
-    )
-    return rules + labels_tier1 + labels_tier2
+    """Create Altair layers for policy event vertical rules + staggered text labels,
+    each event in its own color."""
+    layers = []
+    for evt in POLICY_EVENTS:
+        evt_df = pd.DataFrame([{"date": evt["date"], "label": evt["label"]}])
+        rule = (
+            alt.Chart(evt_df)
+            .mark_rule(strokeDash=[4, 4], strokeWidth=1.5, color=evt["color"])
+            .encode(x="date:T")
+        )
+        label = (
+            alt.Chart(evt_df)
+            .mark_text(
+                align="left", dx=5, dy=evt["dy"], fontSize=10,
+                color=evt["color"], fontStyle="italic",
+            )
+            .encode(x="date:T", y=alt.value(0), text="label:N")
+        )
+        layers.append(rule)
+        layers.append(label)
+    result = layers[0]
+    for layer in layers[1:]:
+        result = result + layer
+    return result
 
 
 # ── Custom CSS ───────────────────────────────────────────────────────────────
@@ -188,7 +192,6 @@ st.markdown("""
         display: inline-block;
         width: 8px;
         height: 8px;
-        background: #C0392B;
         border-radius: 50%;
         margin-right: 6px;
         vertical-align: middle;
@@ -324,20 +327,20 @@ bars = (
 volume_chart = (bars + policy_rules_and_labels()).interactive()
 st.altair_chart(volume_chart, use_container_width=True)
 
-# Policy events legend with context
+# Policy events legend with context — dot colors match chart lines
 st.markdown("""
 <div class="policy-legend">
     <div class="legend-title">Policy Milestones</div>
-    <span class="policy-dot"></span><strong>Maryland (Mar 2022)</strong> — First state to
+    <span class="policy-dot" style="background:#2980B9"></span><strong>Maryland (Mar 2022)</strong> — First state to
     eliminate four-year degree requirements for thousands of state government positions,
     launching a wave of executive action nationwide.<br>
-    <span class="policy-dot"></span><strong>Colorado (Apr 2022)</strong> — Governor Polis
+    <span class="policy-dot" style="background:#E67E22"></span><strong>Colorado (Apr 2022)</strong> — Governor Polis
     signed an executive order directing state agencies to adopt skills-based hiring practices
     and review existing degree requirements.<br>
-    <span class="policy-dot"></span><strong>15 states committed (mid-2023)</strong> — By
+    <span class="policy-dot" style="background:#8E44AD"></span><strong>15 states committed (mid-2023)</strong> — By
     mid-2023, governors from both parties had signed skills-based hiring orders or legislation,
     representing the tipping point identified in Heck et al. (2024).<br>
-    <span class="policy-dot"></span><strong>Connecticut (Jun 2024)</strong> — Signed
+    <span class="policy-dot" style="background:#27AE60"></span><strong>Connecticut (Jun 2024)</strong> — Signed
     skills-first hiring into law, moving beyond executive order to durable legislation — a
     signal that reform is becoming institutionalized rather than administration-dependent.
 </div>
