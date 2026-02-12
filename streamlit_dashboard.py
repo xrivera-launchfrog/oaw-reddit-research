@@ -64,12 +64,12 @@ except FileNotFoundError:
 
 policy_events = load_policy_events()
 
-# Key policy dates for chart overlays
+# Key policy dates for chart overlays — staggered dy to prevent overlap
 KEY_POLICY_DATES = pd.DataFrame([
-    {"date": pd.Timestamp("2022-03-15"), "label": "MD removes degree req."},
-    {"date": pd.Timestamp("2022-04-18"), "label": "CO executive order"},
-    {"date": pd.Timestamp("2023-06-01"), "label": "15 states committed"},
-    {"date": pd.Timestamp("2024-06-05"), "label": "CT legislation signed"},
+    {"date": pd.Timestamp("2022-03-15"), "label": "Maryland (Mar '22)", "dy": -8},
+    {"date": pd.Timestamp("2022-04-18"), "label": "Colorado (Apr '22)", "dy": -22},
+    {"date": pd.Timestamp("2023-06-01"), "label": "15 states (mid-'23)", "dy": -8},
+    {"date": pd.Timestamp("2024-06-05"), "label": "Connecticut (Jun '24)", "dy": -22},
 ])
 
 # ── Custom CSS ───────────────────────────────────────────────────────────────
@@ -109,6 +109,19 @@ st.markdown("""
         padding-left: 0.75rem;
     }
 
+    /* Interpretive takeaway blocks */
+    .takeaway {
+        background: #FFFFFF;
+        border: 1px solid #E5E7EB;
+        border-radius: 8px;
+        padding: 1rem 1.25rem;
+        margin-top: 0.75rem;
+        font-size: 0.9rem;
+        line-height: 1.6;
+        color: #34495E;
+    }
+    .takeaway strong { color: #2C3E50; }
+
     /* Mute dividers */
     hr { border-color: #E5E7EB !important; }
 
@@ -127,6 +140,34 @@ st.markdown("""
         font-size: 0.78rem;
         color: #95A5A6;
         margin-top: 0.5rem;
+    }
+
+    /* Policy event legend */
+    .policy-legend {
+        background: #FFFFFF;
+        border: 1px solid #E5E7EB;
+        border-radius: 8px;
+        padding: 1rem 1.25rem;
+        font-size: 0.85rem;
+        line-height: 1.7;
+        color: #444;
+    }
+    .policy-legend .legend-title {
+        font-weight: 600;
+        color: #2C3E50;
+        font-size: 0.8rem;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        margin-bottom: 0.5rem;
+    }
+    .policy-dot {
+        display: inline-block;
+        width: 8px;
+        height: 8px;
+        background: #C0392B;
+        border-radius: 50%;
+        margin-right: 6px;
+        vertical-align: middle;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -222,6 +263,14 @@ st.markdown("---")
 st.markdown("## Discourse Volume & Policy Events")
 st.markdown('<p class="research-q">Does online discussion of skills-based hiring track with real-world policy action?</p>', unsafe_allow_html=True)
 
+st.markdown("""
+Heck et al. (2024) found that state-level commitments to skills-based hiring produced a
+measurable 2.5 percentage-point annual decline in degree-required job postings. If policy
+is moving the needle on employer behavior, we should expect public discourse to reflect
+that shift. The chart below overlays four key policy milestones against monthly Reddit
+discussion volume.
+""")
+
 monthly = (
     filtered.groupby(["month", "type"])
     .size()
@@ -258,23 +307,56 @@ rules = (
 rule_labels = (
     alt.Chart(KEY_POLICY_DATES)
     .mark_text(
-        align="left", dx=5, dy=-5, fontSize=10, color="#C0392B", angle=0, fontStyle="italic",
+        align="left", dx=5, fontSize=10, color="#C0392B", angle=0, fontStyle="italic",
     )
-    .encode(x="date:T", text="label:N")
+    .encode(x="date:T", y=alt.value(0), text="label:N", dy="dy:Q")
 )
 
 volume_chart = (bars + rules + rule_labels).interactive()
 st.altair_chart(volume_chart, use_container_width=True)
 
-st.caption(
-    "Vertical lines mark major policy milestones in the skills-based hiring movement. "
-    "Spikes in discourse often follow — but sometimes precede — formal state action."
-)
+# Policy events legend with context
+st.markdown("""
+<div class="policy-legend">
+    <div class="legend-title">Policy Milestones</div>
+    <span class="policy-dot"></span><strong>Maryland (Mar 2022)</strong> — First state to
+    eliminate four-year degree requirements for thousands of state government positions,
+    launching a wave of executive action nationwide.<br>
+    <span class="policy-dot"></span><strong>Colorado (Apr 2022)</strong> — Governor Polis
+    signed an executive order directing state agencies to adopt skills-based hiring practices
+    and review existing degree requirements.<br>
+    <span class="policy-dot"></span><strong>15 states committed (mid-2023)</strong> — By
+    mid-2023, governors from both parties had signed skills-based hiring orders or legislation,
+    representing the tipping point identified in Heck et al. (2024).<br>
+    <span class="policy-dot"></span><strong>Connecticut (Jun 2024)</strong> — Signed
+    skills-first hiring into law, moving beyond executive order to durable legislation — a
+    signal that reform is becoming institutionalized rather than administration-dependent.
+</div>
+""", unsafe_allow_html=True)
+
+st.markdown("""
+<div class="takeaway">
+    <strong>Takeaway:</strong> Discussion volume is not uniformly distributed — it clusters
+    around policy events and workforce disruptions. The Maryland executive order in March 2022
+    coincides with the beginning of sustained engagement in federal employment subreddits.
+    Notably, some discourse spikes <em>precede</em> formal state action, suggesting that
+    public pressure and media coverage may be contributing to the policy momentum documented
+    by Heck et al. The mid-2023 period — when 15 states had committed — marks an inflection
+    point in both policy and discourse.
+</div>
+""", unsafe_allow_html=True)
 
 # ── Section 3: Sentiment Landscape ───────────────────────────────────────────
 st.markdown("---")
 st.markdown("## Sentiment Landscape")
 st.markdown('<p class="research-q">How does the tone of discourse vary across communities?</p>', unsafe_allow_html=True)
+
+st.markdown("""
+Blair et al. (2021) argued that the "paper ceiling" is sustained not just by formal
+requirements but by cultural assumptions about degree-holders' competence. If those
+assumptions are shifting in public discourse, we would expect sentiment toward skills-based
+hiring to be broadly positive — but the degree of positivity may vary by community context.
+""")
 
 col_left, col_right = st.columns(2)
 
@@ -321,6 +403,18 @@ with col_right:
     )
     st.altair_chart(sent_hist, use_container_width=True)
 
+st.markdown("""
+<div class="takeaway">
+    <strong>Takeaway:</strong> Overall sentiment skews positive, consistent with the
+    finding from Blair et al. (2021) that public awareness of STARs is growing alongside
+    support for reform. However, the distribution reveals a long negative tail — a
+    meaningful minority of records express frustration, skepticism, or hostility. Subreddit
+    averages mask this variance: a community like r/feddiscussion may appear neutral on
+    average while containing both strong advocates and vocal skeptics. The histogram on the
+    right shows this bimodal tendency more clearly than the averages alone.
+</div>
+""", unsafe_allow_html=True)
+
 # Sentiment over time
 st.markdown("#### Sentiment Trends Over Time")
 monthly_sent = (
@@ -347,10 +441,29 @@ sentiment_time = (
 )
 st.altair_chart(sentiment_time, use_container_width=True)
 
+st.markdown("""
+<div class="takeaway">
+    <strong>Takeaway:</strong> Sentiment is not static. Periods of RIF-related anxiety
+    (visible as sharp dips) depress sentiment across multiple communities simultaneously,
+    suggesting that workforce reduction discourse contaminates the broader conversation
+    around hiring reform. This aligns with a key concern in the Heck et al. (2024) analysis:
+    that skills-based hiring risks being associated with cost-cutting rather than opportunity
+    expansion if messaging is not carefully separated.
+</div>
+""", unsafe_allow_html=True)
+
 # ── Section 4: Discourse Framing Analysis ────────────────────────────────────
 st.markdown("---")
 st.markdown("## Discourse Framing Analysis")
 st.markdown('<p class="research-q">What frames dominate the conversation — and do they align with the academic findings?</p>', unsafe_allow_html=True)
+
+st.markdown("""
+Academic research on skills-based hiring operates within specific frames — equity for
+STARs, the paper ceiling, and the policy mechanics of degree requirement removal. But
+public discourse may organize itself differently. This section classifies each record into
+five discourse frames using pattern matching, revealing how Reddit users actually talk about
+these issues compared to how researchers do.
+""")
 
 FRAMES = {
     "Reform Advocacy": r"(?i)(?:skills?.based|STARs|paper.ceiling|remove.degree|hiring.reform)",
@@ -419,6 +532,21 @@ if frame_dfs:
         )
         st.altair_chart(heatmap, use_container_width=True)
 
+    st.markdown("""
+    <div class="takeaway">
+        <strong>Takeaway:</strong> Reform Advocacy is the most prevalent frame, which is
+        encouraging — the discourse is primarily oriented around solutions rather than
+        grievances. But the sentiment gap between frames is striking. Practitioner Experience
+        and Career Transition records tend to be positive: people sharing success stories
+        and offering practical guidance. RIF &amp; Workforce Cuts discourse, by contrast,
+        carries the most negative sentiment. This pattern matters for policy communications:
+        Blair et al. (2021) emphasized that STARs succeed when given the opportunity, but
+        if the loudest negative signal in public discourse comes from workforce reduction
+        rather than from doubts about STARs' competence, then the messaging challenge is
+        about <em>decoupling reform from austerity</em>, not about proving STARs' value.
+    </div>
+    """, unsafe_allow_html=True)
+
     # Frame trends over time
     st.markdown("#### Frame Trends Over Time")
     frame_time = (
@@ -445,10 +573,20 @@ if frame_dfs:
     st.altair_chart(frame_area, use_container_width=True)
 
     st.caption(
-        "A single record can match multiple frames. "
-        "Reform Advocacy and Practitioner Experience tend to carry more positive sentiment, "
-        "while RIF-adjacent discourse is consistently negative."
+        "A single record can match multiple frames. Frame classification uses pattern "
+        "matching against key terms associated with each discourse category."
     )
+
+    st.markdown("""
+    <div class="takeaway">
+        <strong>Takeaway:</strong> The composition of discourse shifts over time. RIF-related
+        discussion tends to cluster in specific periods — often aligned with federal workforce
+        reduction announcements — rather than being a constant background hum. When RIF
+        discourse surges, it can temporarily dominate the conversation and crowd out Reform
+        Advocacy, creating windows where the public narrative around skills-based hiring
+        turns negative even though the underlying policy trend is positive.
+    </div>
+    """, unsafe_allow_html=True)
 else:
     st.info("No discourse frames matched in the filtered data.")
 
@@ -456,6 +594,14 @@ else:
 st.markdown("---")
 st.markdown("## Keyword Trends in Context")
 st.markdown('<p class="research-q">Are key terms from the academic literature gaining traction in public discourse?</p>', unsafe_allow_html=True)
+
+st.markdown("""
+The research of Blair et al. (2021) introduced "STARs" and "paper ceiling" as organizing
+concepts for the skills-based hiring movement. Heck et al. (2024) tracked policy adoption.
+But policy impact depends partly on whether these ideas reach the people they aim to help.
+This section tracks how six key terms from the academic literature appear in Reddit
+discourse over time.
+""")
 
 keywords = {
     "skills-based": r"(?i)skills?.based",
@@ -504,16 +650,35 @@ if keyword_rows:
 
     kw_rule_labels = (
         alt.Chart(KEY_POLICY_DATES)
-        .mark_text(align="left", dx=5, dy=-5, fontSize=10, color="#C0392B", fontStyle="italic")
-        .encode(x="date:T", text="label:N")
+        .mark_text(align="left", dx=5, fontSize=10, color="#C0392B", fontStyle="italic")
+        .encode(x="date:T", y=alt.value(0), text="label:N", dy="dy:Q")
     )
 
     kw_chart = (kw_lines + kw_rules + kw_rule_labels).interactive()
     st.altair_chart(kw_chart, use_container_width=True)
 
+    st.markdown("""
+    <div class="takeaway">
+        <strong>Takeaway:</strong> "Skills-based" is by far the most-used term, appearing in
+        over half of all records — it has successfully entered the public vocabulary.
+        "STARs" and "degree requirement" show moderate adoption, typically in communities
+        already engaged with federal hiring policy. But "paper ceiling" — the central
+        metaphor of the Opportunity@Work research program — has <strong>zero mentions</strong>
+        in this corpus. This is a significant finding: the academic framing that motivates
+        the policy movement has not yet penetrated the communities it aims to serve. For
+        Opportunity@Work's communications strategy, this suggests an opportunity to seed
+        the "paper ceiling" concept in the same subreddits where "skills-based" already
+        resonates.
+    </div>
+    """, unsafe_allow_html=True)
+
     # Keyword co-occurrence
     st.markdown("#### Keyword Co-occurrence")
-    st.caption("When someone mentions a keyword, what other terms appear in the same record?")
+    st.markdown("""
+    When someone mentions one keyword, what other terms appear in the same record? High
+    co-occurrence suggests concepts are linked in public understanding; low co-occurrence
+    suggests they operate as separate conversations.
+    """)
 
     co_data = []
     for primary_label, primary_pattern in keywords.items():
@@ -550,6 +715,20 @@ if keyword_rows:
             .properties(height=250)
         )
         st.altair_chart(co_heatmap, use_container_width=True)
+
+        st.markdown("""
+        <div class="takeaway">
+            <strong>Takeaway:</strong> "Skills-based" and "degree requirement" co-occur
+            frequently — people discussing one tend to discuss the other, which aligns with
+            the Heck et al. (2024) finding that degree requirement removal is the most
+            visible policy lever. "RIF," however, shows lower co-occurrence with reform
+            terminology, confirming that workforce reduction operates as a <em>separate
+            discourse</em> rather than an integrated part of the hiring reform conversation.
+            This is both a risk (RIF negativity bleeds into adjacent discussions) and an
+            opportunity (the reform narrative can be insulated from austerity framing with
+            deliberate messaging).
+        </div>
+        """, unsafe_allow_html=True)
 else:
     st.info("No keyword matches found in the filtered data.")
 
@@ -557,6 +736,13 @@ else:
 st.markdown("---")
 st.markdown("## Voices from the Discourse")
 st.markdown('<p class="research-q">What are people actually saying?</p>', unsafe_allow_html=True)
+
+st.markdown("""
+Quantitative analysis reveals patterns, but the individual voices behind the data give
+those patterns meaning. The quotes below are the highest-upvoted records in the filtered
+dataset — community-validated contributions that represent what resonates most with
+these audiences. Below them, a searchable table provides access to all primary sources.
+""")
 
 # Featured quotes — top upvoted
 st.markdown("#### Featured Quotes")
@@ -575,6 +761,18 @@ for _, row in top_records.iterrows():
         f'<span style="color:{sentiment_color}">{row["sentiment_label"]}</span></div></div>',
         unsafe_allow_html=True,
     )
+
+st.markdown("""
+<div class="takeaway">
+    <strong>Takeaway:</strong> The most-upvoted records tend to reflect lived experience —
+    practitioners describing what they have seen on the ground, not abstract policy
+    arguments. This aligns with Blair et al.'s emphasis on the 70 million STARs whose
+    competence is demonstrated through work, not credentials. The discourse is anchored
+    in personal testimony, which suggests that communications strategies built around
+    individual stories may resonate more effectively than policy white papers in these
+    communities.
+</div>
+""", unsafe_allow_html=True)
 
 # Searchable data table
 st.markdown("#### Browse All Records")
