@@ -7,7 +7,6 @@ from pathlib import Path
 # ── Page Config ──────────────────────────────────────────────────────────────
 st.set_page_config(
     page_title="Skills-Based Hiring Sentiment Dashboard",
-    page_icon="📊",
     layout="wide",
 )
 
@@ -17,7 +16,7 @@ def check_password():
         st.session_state.authenticated = False
     if not st.session_state.authenticated:
         st.markdown(
-            "<h2 style='text-align:center; margin-top:100px;'>📊 Skills-Based Hiring Sentiment Dashboard</h2>"
+            "<h2 style='text-align:center; margin-top:100px;'>Skills-Based Hiring Sentiment Dashboard</h2>"
             "<p style='text-align:center; color:gray;'>This portfolio project is password-protected.</p>",
             unsafe_allow_html=True,
         )
@@ -95,7 +94,7 @@ elif content_type == "Comments only":
 filtered = df[mask].copy()
 
 # ── Title ────────────────────────────────────────────────────────────────────
-st.title("📊 Skills-Based Hiring Sentiment Dashboard")
+st.title("Skills-Based Hiring Sentiment Dashboard")
 st.caption("Reddit discourse analysis for Opportunity@Work — Xavier Rivera")
 
 if filtered.empty:
