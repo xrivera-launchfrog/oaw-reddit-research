@@ -10,37 +10,6 @@ st.set_page_config(
     layout="wide",
 )
 
-# ── Password Gate ────────────────────────────────────────────────────────────
-def check_password():
-    if "authenticated" not in st.session_state:
-        st.session_state.authenticated = False
-    if not st.session_state.authenticated:
-        st.markdown(
-            "<h2 style='text-align:center; margin-top:100px;'>Skills-Based Hiring Sentiment Dashboard</h2>"
-            "<p style='text-align:center; color:gray;'>This portfolio project is password-protected.</p>",
-            unsafe_allow_html=True,
-        )
-        col1, col2, col3 = st.columns([1, 2, 1])
-        with col2:
-            password = st.text_input(
-                "Enter password to view this portfolio:",
-                type="password",
-                key="pw_input",
-            )
-            if password:
-                try:
-                    correct = st.secrets["password"]
-                except (FileNotFoundError, KeyError):
-                    correct = "portfolio2025"  # fallback for local dev
-                if password == correct:
-                    st.session_state.authenticated = True
-                    st.rerun()
-                else:
-                    st.error("Incorrect password.")
-        st.stop()
-
-check_password()
-
 # ── Load Data ────────────────────────────────────────────────────────────────
 DATA_PATH = Path(__file__).resolve().parent / "data" / "cleaned" / "reddit_skills_cleaned.csv"
 
